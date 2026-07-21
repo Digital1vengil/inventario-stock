@@ -24,6 +24,7 @@
 var FOLDER = 'Inventario - Conteos';
 var MASTER = 'CONSOLIDADO Inventario';
 var HDR = ['FechaHora','Persona','Sesion','Codigo','Articulo','Color','Talle','Rubro','Cantidad'];
+var HDR_CAJAS = ['FechaHora','Persona','Sesion','Caja','Articulo','Rubro','Prendas'];
 
 function doPost(e) {
   var lock = LockService.getScriptLock();
@@ -44,12 +45,14 @@ function doPost(e) {
     // 1) Archivo propio de la persona
     var personal = openOrCreateInFolder_(folder, 'Conteo - ' + persona);
     appendRows_(ensureSheet_(personal, 'Conteos', HDR), persona, data);
+    appendCajas_(ensureSheet_(personal, 'Cajas', HDR_CAJAS), persona, data);
 
     // 2) Consolidado de todos
     var master = getMaster_(folder);
     appendRows_(master.getSheetByName('Detalle'), persona, data);
+    appendCajas_(ensureSheet_(master, 'Cajas', HDR_CAJAS), persona, data);
 
-    return json_({ok:true, persona:persona, guardados:(data.items || []).length});
+    return json_({ok:true, persona:persona, guardados:(data.items || []).length, cajas:(data.cajas || []).length});
   } catch (err) {
     return json_({ok:false, error:String(err)});
   } finally {
@@ -119,6 +122,16 @@ function appendRows_(sh, persona, data) {
             it.color || '', it.talle || '', it.rubro || '', Number(it.cantidad) || 0];
   });
   sh.getRange(sh.getLastRow() + 1, 1, rows.length, HDR.length).setValues(rows);
+}
+
+function appendCajas_(sh, persona, data) {
+  var fecha = data.fecha ? new Date(data.fecha) : new Date();
+  var cajas = data.cajas || [];
+  if (!cajas.length) return;
+  var rows = cajas.map(function (c) {
+    return [fecha, persona, data.sesion || '', c.caja || '', c.articulo || '', c.rubro || '', Number(c.prendas) || 0];
+  });
+  sh.getRange(sh.getLastRow() + 1, 1, rows.length, HDR_CAJAS.length).setValues(rows);
 }
 
 function json_(obj) {
