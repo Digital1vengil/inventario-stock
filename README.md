@@ -14,16 +14,20 @@ App web **mobile-first** para hacer inventario por **artículo → color → tal
 
 El stock de cada código se calcula **sumando** los conteos confirmados. En **Resumen** ves el stock consolidado y podés exportar a Excel o hacer backup.
 
-## Conexión con Google Drive (una vez)
+## Multiusuario (varias personas contando a la vez)
+Varias personas pueden contar **al mismo tiempo** desde sus celulares. Todas usan la **misma URL** del Apps Script y cada una pone su nombre. Como el script corre en la cuenta del dueño, todo se guarda en **su** Drive, en la carpeta **"Inventario - Conteos"**:
+
+- **Un archivo por persona:** `Conteo - <nombre>` (cada uno sube al suyo, sin pisarse).
+- **`CONSOLIDADO Inventario`:** junta todo; la hoja **"Stock"** muestra la **suma por código** de todas las personas (se actualiza sola).
+
+## Conexión con Google Drive (una vez, la hace el dueño del Drive)
 1. Abrí https://script.google.com → **Nuevo proyecto**.
 2. Pegá el contenido de [`APPS_SCRIPT.gs`](APPS_SCRIPT.gs).
 3. **Implementar → Nueva implementación → Aplicación web**
    - Ejecutar como: **Yo**
    - Acceso: **Cualquier usuario**
 4. Autorizá con tu cuenta y copiá la **URL `/exec`**.
-5. En la app: **Ajustes → URL del Apps Script**, pegala y **Guardar**. Probá con "Probar conexión".
-
-Se crea sola una planilla llamada **"Inventario - Conteos"** en tu Drive, que podés abrir o exportar como Excel.
+5. **Esa misma URL** la pega **cada persona** en la app (**Ajustes → URL del Apps Script**), cada una con su nombre. Probá con "Probar conexión".
 
 ## Archivos
 | Archivo | Qué es |

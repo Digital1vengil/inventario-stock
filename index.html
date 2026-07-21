@@ -183,7 +183,8 @@
         <button class="btn btn-ghost" id="btnBackup">💾 Backup</button>
         <button class="btn btn-danger" id="btnClear">🗑️ Vaciar</button>
       </div>
-      <div class="sec-title">Stock consolidado (confirmado)</div>
+      <div class="sec-title">Stock contado en este dispositivo</div>
+      <div class="hint" style="margin:-4px 4px 8px">Esto es solo lo confirmado en <b>este</b> celular. El consolidado de <b>todas las personas</b> se ve en tu Drive (archivo “CONSOLIDADO Inventario”, hoja “Stock”).</div>
       <div class="search" style="margin-bottom:10px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg><input id="fStock" placeholder="Filtrar stock…"></div>
       <div class="tablewrap">
         <table><thead><tr><th>Código</th><th>Descripción</th><th class="num">Stock</th></tr></thead><tbody id="stockBody"></tbody></table>
@@ -198,7 +199,7 @@
         <div class="field">
           <label>URL del Apps Script (Web App)</label>
           <input id="driveUrl" placeholder="https://script.google.com/macros/s/…/exec">
-          <div class="hint">Pegá acá la URL que te da Google al publicar el Apps Script. Con esto, al confirmar un conteo se guarda solo en tu Drive. <a href="#" id="howto">¿Cómo obtenerla?</a></div>
+          <div class="hint"><b>Multiusuario:</b> todas las personas que cuenten deben pegar la <b>MISMA URL</b> acá, cada una con su nombre. Cada uno genera su propio archivo “Conteo - Nombre” en tu Drive y todo se suma en “CONSOLIDADO Inventario”. <a href="#" id="howto">¿Cómo obtener la URL?</a></div>
         </div>
         <div class="row-btns">
           <button class="btn btn-ghost" id="btnTestDrive">🔌 Probar conexión</button>
@@ -433,7 +434,7 @@ function openFinalize(){
   var h='<div class="tablewrap" style="max-height:60vh"><table><thead><tr><th>Artículo</th><th>Color</th><th>Talle</th><th class="num">Cant.</th></tr></thead><tbody>';
   arr.forEach(function(x){h+='<tr><td>'+esc(x.articulo)+'<div class="meta" style="font-size:11px;color:var(--muted)">'+esc(x.codigo)+'</div></td><td>'+esc(x.color||'-')+'</td><td>'+esc(sl(x.talle)||'-')+'</td><td class="num"><b>'+x.cantidad+'</b></td></tr>';});
   h+='</tbody></table></div>';
-  h+='<div class="hint" style="margin-top:12px">'+(driveUrl?'Al confirmar se sube a tu Google Drive automáticamente y se guarda en el historial.':'⚠️ No configuraste el Drive. Se guardará en el historial local; configurá el Drive en Ajustes para subirlo automáticamente.')+'</div>';
+  h+='<div class="hint" style="margin-top:12px">'+(driveUrl?'Al confirmar se sube a tu Google Drive, a tu archivo <b>“Conteo - '+esc(responsable||'?')+'”</b>, y se suma al consolidado de todos.':'⚠️ No configuraste el Drive. Se guardará en el historial local; configurá el Drive en Ajustes para subirlo automáticamente.')+'</div>';
   $('#finBody').innerHTML=h;
   showSheet('#finBg','#finSheet');
 }
@@ -447,8 +448,8 @@ function confirmUpload(){
     session={};saveAll();renderSess();renderList();renderResumen();
     $('#finBody').innerHTML='<div class="ok-screen"><div class="circ">✓</div><h2 style="margin:0 0 6px">¡Conteo confirmado!</h2>'+
       '<p class="muted">'+arr.length+' variantes · '+payload.items.reduce(function(s,x){return s+x.cantidad;},0)+' unidades'+
-      (uploaded?'<br><span class="pill-ok">Enviado a Drive</span>':'<br><span class="pill-no">Guardado local (Drive no configurado)</span>')+'</p>'+
-      (uploaded?'<p class="hint">Abrí tu planilla en Drive para verificar. Puede tardar unos segundos en aparecer.</p>':'')+'</div>';
+      (uploaded?'<br><span class="pill-ok">Subido a Drive · '+esc(responsable||'')+'</span>':'<br><span class="pill-no">Guardado local (Drive no configurado)</span>')+'</p>'+
+      (uploaded?'<p class="hint">Se guardó en tu archivo <b>“Conteo - '+esc(responsable||'')+'”</b> y se sumó al <b>CONSOLIDADO Inventario</b> (carpeta “Inventario - Conteos”). Puede tardar unos segundos en verse.</p>':'')+'</div>';
     $('#finBack').style.display='none';$('#finConfirm').textContent='Cerrar';$('#finConfirm').onclick=function(){hideSheet('#finBg','#finSheet');resetFin();};
   };
   if(driveUrl){
