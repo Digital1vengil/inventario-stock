@@ -30,6 +30,10 @@
   .resp svg{flex:0 0 auto}
   .resp input{flex:1;background:transparent;border:none;color:#fff;font-size:15px;outline:none}
   .resp input::placeholder{color:#dff1ea}
+  .resp.warn{background:rgba(255,90,90,.4);animation:shake .35s}
+  @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+  .mtx td.rowtot{font-weight:800;color:var(--brand);background:#f6f9f8;min-width:60px}
+  .mtx thead th.toth{background:#eef7f2;color:var(--brand)}
 
   /* Views */
   main{flex:1;padding:14px 14px 130px}
@@ -325,7 +329,17 @@ function renderList(){
 /* ================= COUNT SHEET ================= */
 var SLABEL={'MADRE':'Madre','ÚNICO':'Único'};
 function sl(s){return SLABEL[s]||s;}
+function requireResp(){
+  if(!responsable){
+    var r=$('.resp');r.classList.add('warn');$('#responsable').focus();
+    setTimeout(function(){r.classList.remove('warn');},1200);
+    toast('👤 Primero poné tu nombre para poder contar');
+    return false;
+  }
+  return true;
+}
 function openSheet(id){
+  if(!requireResp())return;
   var a=ARTS.filter(function(x){return x.id===id;})[0];if(!a)return;curArt=a;
   $('#shTitle').textContent=a.name;
   $('#shSub').textContent=(a.rubro||'')+(a.marca?' · '+a.marca:'');
@@ -333,26 +347,28 @@ function openSheet(id){
   var hasColor=a.colors.length>0;
   var onlyUnico=a.sizes.length===1 && a.sizes[0]==='ÚNICO';
   if(hasColor && !(onlyUnico && a.colors.length<=1)){
-    // matrix color x size
+    // matrix color x size (sin MADRE; columna Total = suma del color)
+    var sizes=a.sizes.filter(function(s){return s!=='MADRE';});
+    if(!sizes.length) sizes=a.sizes.slice();
     var h='<div class="mtx"><table><thead><tr><th class="corner">Color \\ Talle</th>';
-    a.sizes.forEach(function(s){h+='<th>'+esc(sl(s))+'</th>';});
-    h+='</tr></thead><tbody>';
+    sizes.forEach(function(s){h+='<th>'+esc(sl(s))+'</th>';});
+    h+='<th class="toth">Total</th></tr></thead><tbody>';
     a.colors.forEach(function(col){
-      h+='<tr><th>'+esc(col.l)+'</th>';
-      a.sizes.forEach(function(s){
+      h+='<tr data-color="'+esc(col.c)+'"><th>'+esc(col.l)+'</th>';
+      sizes.forEach(function(s){
         var key=col.c+'|'+s, v=a.variants[key];
         if(!v){h+='<td class="muted">—</td>';return;}
         var q=session[v.c]?session[v.c].cantidad:'';
         h+='<td class="'+(q?'has':'')+'"><input inputmode="numeric" pattern="[0-9]*" data-code="'+esc(v.c)+'" data-color="'+esc(col.l)+'" data-size="'+esc(s)+'" value="'+(q||'')+'"></td>';
       });
-      h+='</tr>';
+      h+='<td class="rowtot">0</td></tr>';
     });
     h+='</tbody></table></div>';
     body.innerHTML=h+'<div class="art-total">Total artículo: <b id="artTot">0</b> u.</div>';
   } else {
     // simple list (single color/size variants)
     var list='<div class="single-list">';
-    var keys=Object.keys(a.variants);
+    var keys=Object.keys(a.variants).filter(function(k){return k.split('|')[1]!=='MADRE';});
     keys.forEach(function(k){
       var v=a.variants[k];var parts=k.split('|');
       var lbl=(a.colors.length?(colorLabel(a,parts[0])):'')+(parts[1]&&parts[1]!=='ÚNICO'?' · '+sl(parts[1]):'');
@@ -375,7 +391,15 @@ function openSheet(id){
 }
 function colorLabel(a,code){var c=a.colors.filter(function(x){return x.c===code;})[0];return c?c.l:code;}
 function updTot(){
-  var t=0;Array.prototype.forEach.call($('#shBody').querySelectorAll('input'),function(i){t+=parseInt(i.value||'0',10)||0;});
+  var body=$('#shBody'),t=0,rows=body.querySelectorAll('tr[data-color]');
+  if(rows.length){
+    Array.prototype.forEach.call(rows,function(tr){
+      var rt=0;Array.prototype.forEach.call(tr.querySelectorAll('input'),function(i){rt+=parseInt(i.value||'0',10)||0;});
+      var tc=tr.querySelector('.rowtot');if(tc)tc.textContent=rt;t+=rt;
+    });
+  } else {
+    Array.prototype.forEach.call(body.querySelectorAll('input'),function(i){t+=parseInt(i.value||'0',10)||0;});
+  }
   var el=$('#artTot');if(el)el.textContent=t;
 }
 function acceptSheet(){
@@ -495,7 +519,7 @@ function switchView(v){
 /* ================= EVENTOS ================= */
 $('#search').oninput=renderList;
 $('#responsable').value=responsable;
-$('#responsable').onchange=function(){responsable=this.value.trim();localStorage.setItem(LS.r,JSON.stringify(responsable));};
+$('#responsable').oninput=function(){responsable=this.value.trim();localStorage.setItem(LS.r,JSON.stringify(responsable));if(responsable)$('.resp').classList.remove('warn');};
 $('#sheetX').onclick=$('#shCancel').onclick=function(){hideSheet('#sheetBg','#sheet');curArt=null;};
 $('#sheetBg').onclick=function(){hideSheet('#sheetBg','#sheet');curArt=null;};
 $('#shAccept').onclick=acceptSheet;
