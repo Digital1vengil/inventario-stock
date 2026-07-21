@@ -75,6 +75,13 @@
   .pickhead{display:flex;align-items:center;justify-content:space-between;margin:14px 4px 8px}
   .pickhead .sec-title{margin:0}
   .pickhead .clr{font-size:12.5px;color:var(--danger);font-weight:700;cursor:pointer}
+  /* Pestañas A contar / Todos */
+  .segtabs{display:flex;gap:6px;background:#e4e9ee;border-radius:12px;padding:4px;margin:12px 0 10px}
+  .seg{flex:1;border:none;background:transparent;border-radius:9px;padding:10px;font-size:14px;font-weight:700;color:var(--muted);cursor:pointer}
+  .seg.on{background:#fff;color:var(--brand);box-shadow:0 1px 3px rgba(20,40,60,.12)}
+  .art.on{border-color:var(--brand2);background:#eefaf5}
+  .art .addbtn{flex:0 0 auto;font-size:15px;font-weight:800;color:var(--brand);border:1px solid #bfe6d6;border-radius:50%;width:34px;height:34px;display:flex;align-items:center;justify-content:center}
+  .art.on .addbtn{background:var(--brand);color:#fff;border-color:var(--brand)}
   /* Login */
   .login{position:fixed;inset:0;z-index:100;background:linear-gradient(150deg,var(--brand),#0a5a46);
     display:none;align-items:center;justify-content:center;padding:22px}
@@ -214,11 +221,21 @@
         </div>
         <div class="results" id="pickResults"></div>
       </div>
-      <div class="pickhead">
-        <div class="sec-title" id="pickTitle">Artículos a contar</div>
-        <span class="clr" id="clrPick" style="display:none">Vaciar lista</span>
+      <div class="segtabs">
+        <button class="seg on" id="segPick">A contar (<b id="pickCount">0</b>)</button>
+        <button class="seg" id="segAll">📋 Todos los artículos</button>
       </div>
-      <div id="pickedList"></div>
+      <div id="panelPick">
+        <div class="pickhead">
+          <div class="sec-title" id="pickTitle">Artículos a contar</div>
+          <span class="clr" id="clrPick" style="display:none">Vaciar lista</span>
+        </div>
+        <div id="pickedList"></div>
+      </div>
+      <div id="panelAll" style="display:none">
+        <div class="chips" id="chips"></div>
+        <div id="allList"></div>
+      </div>
     </section>
 
     <!-- RESUMEN -->
@@ -359,14 +376,40 @@ function artCountInSession(a){
 function togglePick(id){
   var i=picked.indexOf(id);
   if(i>=0){pickRemove(id);}
-  else{picked.push(id);savePick();renderPicked();renderPickResults(true);toast('➕ Agregado: '+artById(id).name);}
+  else{picked.push(id);savePick();renderPicked();renderAll();renderPickResults($('#pickResults').classList.contains('open'));toast('➕ Agregado: '+artById(id).name);}
+}
+/* Pestaña "Todos": catálogo completo con chips por rubro */
+function renderChips(){
+  var h='<div class="chip'+(curRubro===''?' on':'')+'" data-r="">Todos</div>';
+  rubros.forEach(function(r){h+='<div class="chip'+(curRubro===r?' on':'')+'" data-r="'+esc(r)+'">'+esc(r)+'</div>';});
+  var el=$('#chips');el.innerHTML=h;
+  Array.prototype.forEach.call(el.querySelectorAll('.chip'),function(c){c.onclick=function(){curRubro=c.dataset.r;renderChips();renderAll();};});
+}
+function renderAll(){
+  var list=curRubro?ARTS.filter(function(a){return a.rubro===curRubro;}):ARTS;
+  var el=$('#allList');
+  if(!list.length){el.innerHTML='<div class="empty">Sin artículos en este rubro.</div>';return;}
+  el.innerHTML=list.map(function(a){
+    var on=isPicked(a.id);
+    return '<div class="art'+(on?' on':'')+'" data-id="'+esc(a.id)+'"><div class="info"><div class="nm">'+esc(a.name)+
+      '</div><div class="meta">'+metaTxt(a)+'</div></div><span class="addbtn">'+(on?'✓':'＋')+'</span></div>';
+  }).join('');
+  Array.prototype.forEach.call(el.querySelectorAll('.art'),function(d){d.onclick=function(){togglePick(d.dataset.id);};});
+}
+function switchTab(t){
+  var pick=t==='pick';
+  $('#panelPick').style.display=pick?'':'none';
+  $('#panelAll').style.display=pick?'none':'';
+  $('#segPick').classList.toggle('on',pick);
+  $('#segAll').classList.toggle('on',!pick);
+  if(!pick)renderAll();
 }
 function pickRemove(id){
   var a=artById(id);
   if(a && artCountInSession(a)>0 && !confirm('Este artículo tiene conteo cargado. ¿Quitarlo igual? Se borra su conteo actual.'))return;
   if(a)Object.keys(a.variants).forEach(function(k){var c=a.variants[k].c;if(session[c])delete session[c];});
   var i=picked.indexOf(id);if(i>=0)picked.splice(i,1);
-  savePick();saveAll();renderPicked();renderSess();renderPickResults($('#pickResults').classList.contains('open'));
+  savePick();saveAll();renderPicked();renderAll();renderSess();renderPickResults($('#pickResults').classList.contains('open'));
 }
 function renderPickResults(open){
   var q=$('#search').value.trim().toLowerCase();
@@ -392,6 +435,7 @@ function renderPickResults(open){
 function renderPicked(){
   var el=$('#pickedList');
   var arts=picked.map(artById).filter(Boolean);
+  var pc=$('#pickCount');if(pc)pc.textContent=arts.length;
   $('#pickTitle').textContent='Artículos a contar ('+arts.length+')';
   $('#clrPick').style.display=arts.length?'inline':'none';
   if(!arts.length){el.innerHTML='<div class="empty">Buscá arriba y agregá los artículos que vas a contar.<br>Solo esos aparecerán acá hasta que finalices.</div>';return;}
@@ -620,6 +664,8 @@ $('#loginName').onkeydown=function(e){if(e.key==='Enter')doLogin();};
 $('#btnLogout').onclick=function(){showLogin();switchView('contar');};
 
 /* ================= EVENTOS ================= */
+$('#segPick').onclick=function(){switchTab('pick');};
+$('#segAll').onclick=function(){switchTab('all');};
 $('#search').oninput=function(){renderPickResults(true);};
 $('#search').onfocus=function(){renderPickResults(true);};
 document.addEventListener('click',function(e){if(!e.target.closest('.picker'))$('#pickResults').classList.remove('open');});
@@ -650,7 +696,7 @@ Array.prototype.forEach.call(document.querySelectorAll('.nav a'),function(a){a.o
 /* ================= INIT ================= */
 if(!ARTS.length){$('#hdrMeta').textContent='⚠ No se cargó el catálogo (articulos.js)';}
 else{$('#hdrMeta').textContent=ARTS.length+' artículos · '+ARTS.reduce(function(s,a){return s+Object.keys(a.variants).length;},0)+' SKUs';}
-renderPicked();renderPickResults(false);renderSess();renderResumen();driveStateRender();
+renderChips();renderPicked();renderPickResults(false);renderSess();renderResumen();driveStateRender();
 if(!responsable)showLogin();
 })();
 </script>
