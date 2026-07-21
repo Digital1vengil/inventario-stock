@@ -310,9 +310,12 @@
     <div class="sub" id="finSub"></div>
   </div>
   <div class="sheet-body" id="finBody"></div>
-  <div class="sheet-foot">
-    <button class="btn btn-ghost" id="finBack">Seguir contando</button>
-    <button class="btn btn-primary" id="finConfirm">✅ Confirmar y subir</button>
+  <div class="sheet-foot" id="finFoot" style="flex-direction:column;gap:8px">
+    <button class="btn btn-primary" id="finConfirm" style="width:100%">✅ Confirmar y subir</button>
+    <div style="display:flex;gap:8px;width:100%" id="finSecRow">
+      <button class="btn btn-ghost" id="finBack">Seguir contando</button>
+      <button class="btn btn-danger" id="finDiscard">🗑️ Descartar</button>
+    </div>
   </div>
 </div>
 
@@ -529,7 +532,7 @@ function confirmUpload(){
       '<p class="muted">'+arr.length+' variantes · '+payload.items.reduce(function(s,x){return s+x.cantidad;},0)+' unidades'+
       (uploaded?'<br><span class="pill-ok">Subido a Drive · '+esc(responsable||'')+'</span>':'<br><span class="pill-no">Guardado local (Drive no configurado)</span>')+'</p>'+
       (uploaded?'<p class="hint">Se guardó en tu archivo <b>“Conteo - '+esc(responsable||'')+'”</b> y se sumó al <b>CONSOLIDADO Inventario</b> (carpeta “Inventario - Conteos”). Puede tardar unos segundos en verse.</p>':'')+'</div>';
-    $('#finBack').style.display='none';$('#finConfirm').textContent='Cerrar';$('#finConfirm').onclick=function(){hideSheet('#finBg','#finSheet');resetFin();};
+    $('#finSecRow').style.display='none';$('#finConfirm').textContent='Cerrar';$('#finConfirm').onclick=function(){hideSheet('#finBg','#finSheet');resetFin();};
   };
   if(driveUrl){
     $('#finConfirm').textContent='Subiendo…';$('#finConfirm').disabled=true;
@@ -538,7 +541,13 @@ function confirmUpload(){
       .catch(function(){$('#finConfirm').disabled=false;finish(false);toast('No se pudo contactar Drive; guardado local');});
   } else { finish(false); }
 }
-function resetFin(){$('#finBack').style.display='';$('#finConfirm').textContent='✅ Confirmar y subir';$('#finConfirm').onclick=confirmUpload;}
+function resetFin(){$('#finSecRow').style.display='';$('#finConfirm').textContent='✅ Confirmar y subir';$('#finConfirm').disabled=false;$('#finConfirm').onclick=confirmUpload;}
+function discardCount(){
+  if(!sessArr().length){hideSheet('#finBg','#finSheet');return;}
+  if(!confirm('¿Descartar el conteo actual? Se borra lo cargado en esta ronda (no afecta lo ya confirmado).'))return;
+  session={};picked=[];savePick();saveAll();renderSess();renderPicked();renderPickResults(false);$('#search').value='';
+  hideSheet('#finBg','#finSheet');resetFin();toast('🗑️ Conteo descartado');
+}
 
 /* ================= RESUMEN ================= */
 function computeStock(){
@@ -624,6 +633,7 @@ $('#btnFinalize').onclick=openFinalize;
 $('#finX').onclick=$('#finBack').onclick=function(){hideSheet('#finBg','#finSheet');resetFin();};
 $('#finBg').onclick=function(){hideSheet('#finBg','#finSheet');resetFin();};
 $('#finConfirm').onclick=confirmUpload;
+$('#finDiscard').onclick=discardCount;
 $('#fStock').oninput=renderResumen;
 $('#btnExport').onclick=exportExcel;
 $('#btnBackup').onclick=backup;
