@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sistema de Inventario y Stock</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg:#f4f6f8; --card:#ffffff; --ink:#1f2933; --muted:#6b7280;
+    --brand:#0b6b53; --brand2:#0e8a6a; --line:#e3e8ee; --accent:#f59e0b;
+    --danger:#dc2626; --ok:#059669;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);color:var(--ink);font-size:15px}
+  header{background:linear-gradient(135deg,var(--brand),var(--brand2));color:#fff;
+    padding:18px 22px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
+  header h1{margin:0;font-size:19px;font-weight:700;letter-spacing:.2px}
+  header .meta{font-size:13px;opacity:.9}
+  .wrap{max-width:1180px;margin:0 auto;padding:18px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  @media(max-width:880px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:16px 18px;box-shadow:0 1px 2px rgba(0,0,0,.03)}
+  .card h2{margin:0 0 12px;font-size:15px;text-transform:uppercase;letter-spacing:.6px;color:var(--brand)}
+  label{display:block;font-size:12px;color:var(--muted);margin:10px 0 4px;font-weight:600}
+  input,select{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;
+    font-size:15px;background:#fff;color:var(--ink)}
+  input:focus,select:focus{outline:none;border-color:var(--brand2);box-shadow:0 0 0 3px rgba(14,138,106,.12)}
+  .row{display:flex;gap:10px}
+  .row>*{flex:1}
+  button{cursor:pointer;border:none;border-radius:8px;padding:11px 16px;font-size:14px;
+    font-weight:600;transition:.15s}
+  .btn{background:var(--brand);color:#fff}
+  .btn:hover{background:var(--brand2)}
+  .btn-accent{background:var(--accent);color:#3a2c00}
+  .btn-ghost{background:#eef2f5;color:var(--ink)}
+  .btn-ghost:hover{background:#e2e8ee}
+  .btn-danger{background:#fff;color:var(--danger);border:1px solid #f3c6c6}
+  .btn-danger:hover{background:#fdecec}
+  .searchbox{position:relative}
+  .results{position:absolute;z-index:20;left:0;right:0;top:100%;background:#fff;border:1px solid var(--line);
+    border-radius:8px;margin-top:4px;max-height:280px;overflow:auto;box-shadow:0 8px 24px rgba(0,0,0,.12);display:none}
+  .results.open{display:block}
+  .res-item{padding:9px 12px;border-bottom:1px solid #f1f4f7;cursor:pointer}
+  .res-item:last-child{border-bottom:none}
+  .res-item:hover,.res-item.active{background:#eefaf5}
+  .res-item .code{font-weight:700;color:var(--brand)}
+  .res-item .desc{font-size:12.5px;color:var(--muted)}
+  .selected{background:#eefaf5;border:1px dashed var(--brand2);border-radius:8px;padding:12px;margin-top:8px;display:none}
+  .selected.show{display:block}
+  .selected .code{font-weight:700;font-size:16px;color:var(--brand)}
+  .selected .tags{margin-top:6px;font-size:12px;color:var(--muted)}
+  .tag{display:inline-block;background:#fff;border:1px solid var(--line);border-radius:20px;
+    padding:2px 10px;margin-right:6px}
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
+  th{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);position:sticky;top:0;background:#fff}
+  td.num,th.num{text-align:right}
+  .tablewrap{max-height:340px;overflow:auto;border:1px solid var(--line);border-radius:8px}
+  .stats{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:8px}
+  .stat{background:#eefaf5;border:1px solid #cdeee2;border-radius:10px;padding:10px 14px;flex:1;min-width:120px}
+  .stat .n{font-size:22px;font-weight:800;color:var(--brand)}
+  .stat .l{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+  .empty{color:var(--muted);font-size:13px;padding:14px;text-align:center}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1f2933;color:#fff;
+    padding:11px 18px;border-radius:8px;font-size:14px;opacity:0;pointer-events:none;transition:.25s;z-index:50}
+  .toast.show{opacity:1;bottom:30px}
+  .del{color:var(--danger);cursor:pointer;font-weight:700;border:none;background:none;font-size:16px;padding:0 6px}
+  .pill{font-size:11px;padding:2px 8px;border-radius:20px;background:#eef2f5;color:var(--muted)}
+  .filterbar{display:flex;gap:8px;margin-bottom:10px}
+  .filterbar input{flex:2}.filterbar select{flex:1}
+  footer{text-align:center;color:var(--muted);font-size:12px;padding:24px}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>📦 Sistema de Inventario y Stock</h1>
+    <div class="meta" id="hdrMeta">Catálogo cargado</div>
+  </div>
+  <div style="text-align:right">
+    <label style="color:#dff5ee;margin:0 0 3px">Responsable del conteo</label>
+    <input id="responsable" placeholder="Tu nombre" style="min-width:200px;color:#1f2933">
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="stats">
+    <div class="stat"><div class="n" id="stCodigos">0</div><div class="l">Códigos en catálogo</div></div>
+    <div class="stat"><div class="n" id="stFichas">0</div><div class="l">Fichas de conteo</div></div>
+    <div class="stat"><div class="n" id="stItems">0</div><div class="l">Códigos con stock</div></div>
+    <div class="stat"><div class="n" id="stUnidades">0</div><div class="l">Unidades totales</div></div>
+  </div>
+
+  <div class="grid">
+    <!-- CARGA -->
+    <div class="card">
+      <h2>Cargar conteo</h2>
+      <label>Buscar por código o descripción</label>
+      <div class="searchbox">
+        <input id="search" autocomplete="off" placeholder="Ej: CARRERA-10-L, camisa, INV26...">
+        <div class="results" id="results"></div>
+      </div>
+
+      <div class="selected" id="selected">
+        <div class="code" id="selCode"></div>
+        <div id="selDesc" style="font-size:13.5px;margin-top:3px"></div>
+        <div class="tags" id="selTags"></div>
+      </div>
+
+      <div class="row" style="margin-top:12px">
+        <div>
+          <label>Cantidad contada</label>
+          <input id="cantidad" type="number" min="0" step="1" value="1">
+        </div>
+        <div style="display:flex;align-items:flex-end">
+          <button class="btn" style="width:100%" id="btnAdd">➕ Agregar conteo</button>
+        </div>
+      </div>
+      <p style="font-size:12px;color:var(--muted);margin:10px 0 0">
+        Cada conteo se guarda como una ficha (código, cantidad, responsable, fecha y hora).
+        El stock del código se calcula <b>sumando</b> todos sus conteos.
+      </p>
+    </div>
+
+    <!-- STOCK CONSOLIDADO -->
+    <div class="card">
+      <h2>Stock consolidado</h2>
+      <div class="filterbar">
+        <input id="fStock" placeholder="Filtrar por código o descripción...">
+        <select id="fRubro"><option value="">Todos los rubros</option></select>
+      </div>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Código</th><th>Descripción</th><th>Rubro</th><th class="num">Stock</th></tr></thead>
+          <tbody id="stockBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- FICHAS / BASE DE DATOS -->
+  <div class="card" style="margin-top:18px">
+    <h2>Fichas de conteo (base de datos)</h2>
+    <div class="toolbar">
+      <button class="btn-accent" id="btnExport">⬇️ Exportar a Excel</button>
+      <button class="btn-ghost" id="btnImport">⬆️ Importar Excel</button>
+      <input type="file" id="fileImport" accept=".xlsx,.xls" style="display:none">
+      <button class="btn-ghost" id="btnBackup">💾 Backup (.json)</button>
+      <button class="btn-ghost" id="btnRestore">↩️ Restaurar (.json)</button>
+      <input type="file" id="fileRestore" accept=".json" style="display:none">
+      <button class="btn-danger" id="btnClear" style="margin-left:auto">🗑️ Vaciar base</button>
+    </div>
+    <div class="filterbar"><input id="fFichas" placeholder="Filtrar fichas por código..."></div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Fecha / hora</th><th>Código</th><th>Descripción</th><th class="num">Cant.</th><th>Responsable</th><th></th></tr></thead>
+        <tbody id="fichasBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<footer>
+  Los datos se guardan en este navegador. Exportá a Excel para guardar la copia en tu Drive.
+</footer>
+
+<div class="toast" id="toast"></div>
+
+<!-- Catálogo de códigos -->
+<script src="catalogo.js"></script>
+<script>
+(function(){
+  "use strict";
+  var CATALOGO = window.CATALOGO || [];
+  var LS_FICHAS = "inv_fichas_v1", LS_RESP = "inv_responsable_v1";
+  var fichas = load(LS_FICHAS, []);
+  var responsable = load(LS_RESP, "");
+  var selected = null, activeIdx = -1, curResults = [];
+
+  // --- índice de búsqueda ---
+  var idx = CATALOGO.map(function(c){
+    return {c:c, key:((c.codigo||"")+" "+(c.descripcion||"")+" "+(c.rubro||"")+" "+(c.subrubro||"")).toLowerCase()};
+  });
+
+  var $ = function(id){return document.getElementById(id);};
+
+  // ---------- persistencia ----------
+  function save(){ localStorage.setItem(LS_FICHAS, JSON.stringify(fichas)); }
+  function load(k,def){ try{var v=localStorage.getItem(k);return v?JSON.parse(v):def;}catch(e){return def;} }
+
+  // ---------- búsqueda ----------
+  function search(q){
+    q=q.trim().toLowerCase(); if(!q) return [];
+    var terms=q.split(/\s+/), out=[];
+    for(var i=0;i<idx.length && out.length<50;i++){
+      var ok=true; for(var t=0;t<terms.length;t++){ if(idx[i].key.indexOf(terms[t])<0){ok=false;break;} }
+      if(ok) out.push(idx[i].c);
+    }
+    return out;
+  }
+  function renderResults(list){
+    curResults=list; activeIdx=-1;
+    var r=$("results");
+    if(!list.length){ r.classList.remove("open"); r.innerHTML=""; return; }
+    r.innerHTML=list.map(function(c,i){
+      return '<div class="res-item" data-i="'+i+'"><span class="code">'+esc(c.codigo)+
+        '</span> <span class="pill">'+esc(c.rubro||"-")+'</span><div class="desc">'+esc(c.descripcion||"")+'</div></div>';
+    }).join("");
+    r.classList.add("open");
+    Array.prototype.forEach.call(r.querySelectorAll(".res-item"),function(el){
+      el.addEventListener("click",function(){ pick(curResults[+el.dataset.i]); });
+    });
+  }
+  function pick(c){
+    selected=c; $("search").value="";
+    $("results").classList.remove("open");
+    $("selCode").textContent=c.codigo;
+    $("selDesc").textContent=c.descripcion||"";
+    $("selTags").innerHTML='<span class="tag">Rubro: '+esc(c.rubro||"-")+'</span>'+
+      '<span class="tag">SubRubro: '+esc(c.subrubro||"-")+'</span>'+
+      (c.marca?'<span class="tag">Marca: '+esc(c.marca)+'</span>':'');
+    $("selected").classList.add("show");
+    $("cantidad").focus(); $("cantidad").select();
+  }
+
+  // ---------- alta de ficha ----------
+  function addFicha(){
+    if(!selected){ toast("Elegí un código primero"); $("search").focus(); return; }
+    var cant=parseInt($("cantidad").value,10);
+    if(isNaN(cant)||cant<0){ toast("Cantidad inválida"); return; }
+    responsable=$("responsable").value.trim();
+    localStorage.setItem(LS_RESP, JSON.stringify(responsable));
+    fichas.unshift({
+      id:Date.now()+"-"+Math.random().toString(36).slice(2,7),
+      codigo:selected.codigo, descripcion:selected.descripcion||"",
+      rubro:selected.rubro||"", subrubro:selected.subrubro||"",
+      cantidad:cant, responsable:responsable||"(sin nombre)", fecha:new Date().toISOString()
+    });
+    save(); render();
+    toast("✔ Conteo agregado: "+selected.codigo+" +"+cant);
+    $("cantidad").value=1;
+  }
+
+  function delFicha(id){
+    fichas=fichas.filter(function(f){return f.id!==id;}); save(); render();
+  }
+
+  // ---------- stock consolidado ----------
+  function computeStock(){
+    var m={};
+    fichas.forEach(function(f){
+      if(!m[f.codigo]) m[f.codigo]={codigo:f.codigo,descripcion:f.descripcion,rubro:f.rubro,stock:0};
+      m[f.codigo].stock+=f.cantidad;
+    });
+    return Object.keys(m).map(function(k){return m[k];}).sort(function(a,b){return a.codigo<b.codigo?-1:1;});
+  }
+
+  // ---------- render ----------
+  function render(){
+    // stats
+    $("stCodigos").textContent=CATALOGO.length.toLocaleString("es-AR");
+    $("stFichas").textContent=fichas.length.toLocaleString("es-AR");
+    var stock=computeStock();
+    $("stItems").textContent=stock.length.toLocaleString("es-AR");
+    $("stUnidades").textContent=stock.reduce(function(s,x){return s+x.stock;},0).toLocaleString("es-AR");
+
+    // stock table
+    var fs=$("fStock").value.trim().toLowerCase(), fr=$("fRubro").value;
+    var sb=$("stockBody");
+    var sf=stock.filter(function(x){
+      var okT=!fs||(x.codigo+" "+x.descripcion).toLowerCase().indexOf(fs)>=0;
+      var okR=!fr||x.rubro===fr; return okT&&okR;
+    });
+    sb.innerHTML= sf.length? sf.map(function(x){
+      return '<tr><td><b>'+esc(x.codigo)+'</b></td><td>'+esc(x.descripcion)+'</td><td>'+esc(x.rubro||"-")+
+        '</td><td class="num"><b>'+x.stock+'</b></td></tr>';
+    }).join("") : '<tr><td colspan="4" class="empty">Sin stock cargado todavía.</td></tr>';
+
+    // fichas table
+    var ff=$("fFichas").value.trim().toLowerCase(), fb=$("fichasBody");
+    var flt=fichas.filter(function(f){return !ff||f.codigo.toLowerCase().indexOf(ff)>=0;});
+    fb.innerHTML= flt.length? flt.map(function(f){
+      return '<tr><td>'+fmtDate(f.fecha)+'</td><td><b>'+esc(f.codigo)+'</b></td><td>'+esc(f.descripcion)+
+        '</td><td class="num">'+f.cantidad+'</td><td>'+esc(f.responsable)+
+        '</td><td><button class="del" data-id="'+f.id+'" title="Eliminar">×</button></td></tr>';
+    }).join("") : '<tr><td colspan="6" class="empty">No hay fichas cargadas.</td></tr>';
+    Array.prototype.forEach.call(fb.querySelectorAll(".del"),function(b){
+      b.addEventListener("click",function(){ if(confirm("¿Eliminar esta ficha?")) delFicha(b.dataset.id); });
+    });
+  }
+
+  function fillRubros(){
+    var set={}; CATALOGO.forEach(function(c){ if(c.rubro) set[c.rubro]=1; });
+    var sel=$("fRubro");
+    Object.keys(set).sort().forEach(function(r){
+      var o=document.createElement("option"); o.value=r; o.textContent=r; sel.appendChild(o);
+    });
+  }
+
+  // ---------- Excel ----------
+  function exportExcel(){
+    if(typeof XLSX==="undefined"){ toast("Librería Excel no disponible (sin conexión)"); return; }
+    var wb=XLSX.utils.book_new();
+    var fData=fichas.map(function(f){return {
+      "Fecha/Hora":fmtDate(f.fecha),"Codigo":f.codigo,"Descripcion":f.descripcion,
+      "Rubro":f.rubro,"SubRubro":f.subrubro,"Cantidad":f.cantidad,"Responsable":f.responsable};});
+    var sData=computeStock().map(function(x){return {
+      "Codigo":x.codigo,"Descripcion":x.descripcion,"Rubro":x.rubro,"Stock":x.stock};});
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sData.length?sData:[{Codigo:"",Descripcion:"",Rubro:"",Stock:""}]), "Stock");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(fData.length?fData:[{"Fecha/Hora":"",Codigo:"",Descripcion:"",Rubro:"",SubRubro:"",Cantidad:"",Responsable:""}]), "Fichas");
+    var d=new Date(), pad=function(n){return (n<10?"0":"")+n;};
+    var name="Inventario_"+d.getFullYear()+pad(d.getMonth()+1)+pad(d.getDate())+"_"+pad(d.getHours())+pad(d.getMinutes())+".xlsx";
+    XLSX.writeFile(wb,name);
+    toast("✔ Excel exportado: "+name);
+  }
+
+  function importExcel(file){
+    var rd=new FileReader();
+    rd.onload=function(e){
+      try{
+        var wb=XLSX.read(new Uint8Array(e.target.result),{type:"array"});
+        var sn = wb.SheetNames.indexOf("Fichas")>=0 ? "Fichas" : wb.SheetNames[wb.SheetNames.length-1];
+        var rows=XLSX.utils.sheet_to_json(wb.Sheets[sn]);
+        var add=0;
+        rows.forEach(function(r){
+          var cod=r.Codigo||r.codigo; if(!cod) return;
+          var cant=parseInt(r.Cantidad!=null?r.Cantidad:r.cantidad,10); if(isNaN(cant)) return;
+          fichas.unshift({id:Date.now()+"-"+Math.random().toString(36).slice(2,7),
+            codigo:String(cod),descripcion:r.Descripcion||"",rubro:r.Rubro||"",subrubro:r.SubRubro||"",
+            cantidad:cant,responsable:r.Responsable||"(importado)",
+            fecha: parseFecha(r["Fecha/Hora"])||new Date().toISOString()});
+          add++;
+        });
+        save(); render(); toast("✔ "+add+" fichas importadas");
+      }catch(err){ toast("Error al importar: "+err.message); }
+    };
+    rd.readAsArrayBuffer(file);
+  }
+
+  // ---------- backup json ----------
+  function backup(){
+    var blob=new Blob([JSON.stringify({fichas:fichas,responsable:responsable},null,2)],{type:"application/json"});
+    var a=document.createElement("a"); a.href=URL.createObjectURL(blob);
+    a.download="inventario_backup_"+Date.now()+".json"; a.click(); toast("✔ Backup descargado");
+  }
+  function restore(file){
+    var rd=new FileReader();
+    rd.onload=function(e){ try{
+      var d=JSON.parse(e.target.result);
+      if(Array.isArray(d.fichas)){ fichas=d.fichas; save(); render(); toast("✔ Base restaurada ("+fichas.length+" fichas)"); }
+      else toast("Archivo inválido");
+    }catch(err){ toast("Error: "+err.message); } };
+    rd.readAsText(file);
+  }
+
+  // ---------- helpers ----------
+  function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];});}
+  function fmtDate(iso){var d=new Date(iso);if(isNaN(d))return iso;var p=function(n){return(n<10?"0":"")+n;};
+    return p(d.getDate())+"/"+p(d.getMonth()+1)+"/"+d.getFullYear()+" "+p(d.getHours())+":"+p(d.getMinutes());}
+  function parseFecha(s){if(!s)return null;var m=String(s).match(/(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})/);
+    if(m)return new Date(+m[3],+m[2]-1,+m[1],+m[4],+m[5]).toISOString();var d=new Date(s);return isNaN(d)?null:d.toISOString();}
+  var toastT;
+  function toast(msg){var t=$("toast");t.textContent=msg;t.classList.add("show");clearTimeout(toastT);toastT=setTimeout(function(){t.classList.remove("show");},2200);}
+
+  // ---------- eventos ----------
+  $("search").addEventListener("input",function(){ renderResults(search(this.value)); });
+  $("search").addEventListener("keydown",function(e){
+    var r=$("results"); if(!r.classList.contains("open"))return;
+    var items=r.querySelectorAll(".res-item");
+    if(e.key==="ArrowDown"){e.preventDefault();activeIdx=Math.min(activeIdx+1,items.length-1);}
+    else if(e.key==="ArrowUp"){e.preventDefault();activeIdx=Math.max(activeIdx-1,0);}
+    else if(e.key==="Enter"){e.preventDefault();if(activeIdx>=0)pick(curResults[activeIdx]);else if(curResults.length)pick(curResults[0]);return;}
+    else return;
+    items.forEach(function(el,i){el.classList.toggle("active",i===activeIdx);if(i===activeIdx)el.scrollIntoView({block:"nearest"});});
+  });
+  document.addEventListener("click",function(e){ if(!e.target.closest(".searchbox")) $("results").classList.remove("open"); });
+  $("btnAdd").addEventListener("click",addFicha);
+  $("cantidad").addEventListener("keydown",function(e){if(e.key==="Enter")addFicha();});
+  $("fStock").addEventListener("input",render);
+  $("fRubro").addEventListener("change",render);
+  $("fFichas").addEventListener("input",render);
+  $("responsable").addEventListener("change",function(){localStorage.setItem(LS_RESP,JSON.stringify(this.value.trim()));});
+  $("btnExport").addEventListener("click",exportExcel);
+  $("btnImport").addEventListener("click",function(){$("fileImport").click();});
+  $("fileImport").addEventListener("change",function(){if(this.files[0]){importExcel(this.files[0]);this.value="";}});
+  $("btnBackup").addEventListener("click",backup);
+  $("btnRestore").addEventListener("click",function(){$("fileRestore").click();});
+  $("fileRestore").addEventListener("change",function(){if(this.files[0]){restore(this.files[0]);this.value="";}});
+  $("btnClear").addEventListener("click",function(){
+    if(fichas.length && confirm("¿Vaciar TODA la base de fichas? Esto no se puede deshacer.\\n(Exportá a Excel antes si querés conservarla.)")){
+      fichas=[]; save(); render(); toast("Base vaciada");
+    }
+  });
+
+  // ---------- init ----------
+  if(!CATALOGO.length){ $("hdrMeta").textContent="⚠ No se cargó el catálogo (catalogo.js)"; }
+  else { $("hdrMeta").textContent=CATALOGO.length.toLocaleString("es-AR")+" códigos disponibles"; }
+  $("responsable").value=responsable||"";
+  fillRubros();
+  render();
+})();
+</script>
+</body>
+</html>
