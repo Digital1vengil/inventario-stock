@@ -180,7 +180,10 @@
   .boxbar .binfo b{color:#8a5a00}
   .boxbar button{flex:0 0 auto}
   .boxlist{margin-top:10px}
-  .boxrow{display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--line);border-radius:10px;margin-bottom:7px;background:#fff}
+  .boxrow{display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--line);border-radius:10px;margin-bottom:7px;background:#fff;cursor:pointer}
+  .boxrow:active{background:#f4f9f7}
+  .boxrow.editing{border-color:var(--brand2);background:#eefaf5;box-shadow:0 0 0 2px rgba(14,138,106,.15)}
+  .boxrow .ed{color:var(--muted);font-size:12px}
   .boxrow .bn{font-weight:800;color:var(--brand);flex:0 0 auto}
   .boxrow .bt{flex:1;font-size:13px;color:var(--muted)}
   .boxrow .bq{font-weight:800}
@@ -360,6 +363,7 @@ var boxes=load(LS.b,[]);              // cajas: [{id,artId,articulo,rubro,resp,f
 var responsable=load(LS.r,'');
 var driveUrl=load(LS.d,'');
 var curArt=null;
+var editingBoxId=null;   // caja en edición dentro del conteo
 
 var $=function(s,c){return (c||document).querySelector(s);};
 function load(k,def){try{var v=localStorage.getItem(k);return v?JSON.parse(v):def;}catch(e){return def;}}
@@ -479,6 +483,7 @@ function requireResp(){
 }
 function openSheet(id){
   if(!requireResp())return;
+  editingBoxId=null;
   var a=ARTS.filter(function(x){return x.id===id;})[0];if(!a)return;curArt=a;
   $('#shTitle').textContent=a.name;
   $('#shSub').textContent=(a.rubro||'')+(a.marca?' · '+a.marca:'');
@@ -533,20 +538,58 @@ function openSheet(id){
   updTot();
   showSheet('#sheetBg','#sheet');
 }
+function setBoxBtn(){var b=$('#btnAddBox');if(b)b.textContent=editingBoxId?'💾 Guardar cambios':'📦 Agregar caja';}
 function updBoxInfo(){
   var el=$('#boxInfo');if(!el||!curArt)return;
+  if(editingBoxId){
+    el.innerHTML='✏️ <b>Editando</b> esta caja. Cambiá las cantidades y tocá “Guardar cambios”. <a href="#" id="cancelEdit">Cancelar</a>';
+    var c=$('#cancelEdit');if(c)c.onclick=function(e){e.preventDefault();cancelEdit();};
+    return;
+  }
   var bs=boxesFor(curArt.id), tot=bs.reduce(function(s,b){return s+b.total;},0);
-  el.innerHTML=bs.length?('📦 <b>'+bs.length+'</b> caja'+(bs.length>1?'s':'')+' · <b>'+tot+'</b> prendas acumuladas en este artículo. Cargá la próxima caja y tocá “Agregar caja”.')
+  el.innerHTML=bs.length?('📦 <b>'+bs.length+'</b> caja'+(bs.length>1?'s':'')+' · <b>'+tot+'</b> prendas acumuladas. Tocá una caja para <b>editarla</b>, o cargá la próxima y “Agregar caja”.')
     :'Cargá las cantidades de la <b>primera caja</b> y tocá “Agregar caja”. Se suma y reinicia para la próxima.';
 }
 function renderBoxList(){
   var el=$('#boxList');if(!el||!curArt)return;
   var bs=boxesFor(curArt.id);
   el.innerHTML=bs.map(function(b,i){
-    return '<div class="boxrow"><span class="bn">Caja '+(i+1)+'</span><span class="bt">'+esc(fmt(b.fecha))+'</span><span class="bq">'+b.total+' u.</span><button class="bx" data-bid="'+esc(b.id)+'" title="Quitar caja">×</button></div>';
+    var ed=b.id===editingBoxId;
+    return '<div class="boxrow'+(ed?' editing':'')+'" data-bid="'+esc(b.id)+'"><span class="bn">Caja '+(i+1)+'</span><span class="bt ed">'+(ed?'✏️ editando…':'✏️ '+esc(fmt(b.fecha)))+'</span><span class="bq">'+b.total+' u.</span><button class="bx" data-bid="'+esc(b.id)+'" title="Quitar caja">×</button></div>';
   }).join('');
-  Array.prototype.forEach.call(el.querySelectorAll('.bx'),function(x){x.onclick=function(){removeBox(x.dataset.bid);};});
-  updBoxInfo();
+  Array.prototype.forEach.call(el.querySelectorAll('.boxrow'),function(r){
+    r.onclick=function(ev){if(ev.target.closest('.bx'))return;editBox(r.dataset.bid);};});
+  Array.prototype.forEach.call(el.querySelectorAll('.bx'),function(x){
+    x.onclick=function(ev){ev.stopPropagation();removeBox(x.dataset.bid);};});
+  setBoxBtn();updBoxInfo();
+}
+function fillMatrix(items){
+  Array.prototype.forEach.call($('#shBody').querySelectorAll('input'),function(inp){
+    var it=items[inp.dataset.code];
+    inp.value=it?it.cantidad:'';
+    var td=inp.closest('td');if(td)td.classList.toggle('has',!!inp.value);
+  });
+  updTot();
+}
+function editBox(id){
+  var b=boxes.filter(function(x){return x.id===id;})[0];if(!b)return;
+  editingBoxId=id;fillMatrix(b.items);renderBoxList();
+  var sb=$('#shBody');if(sb)sb.scrollTop=0;
+  toast('✏️ Editando caja — modificá y guardá');
+}
+function cancelEdit(){editingBoxId=null;resetMatrix();renderBoxList();toast('Edición cancelada');}
+function saveEdit(){
+  var b=boxes.filter(function(x){return x.id===editingBoxId;})[0];if(!b){editingBoxId=null;return;}
+  var m=readMatrix();
+  Object.keys(b.items).forEach(function(c){if(session[c]){session[c].cantidad-=b.items[c].cantidad;if(session[c].cantidad<=0)delete session[c];}});
+  if(m.total===0){
+    boxes=boxes.filter(function(x){return x.id!==b.id;});toast('Caja vaciada y eliminada');
+  }else{
+    b.items=m.items;b.total=m.total;
+    Object.keys(m.items).forEach(function(c){var it=m.items[c];if(!session[c])session[c]={codigo:c,cantidad:0,color:it.color,talle:it.talle,articulo:it.articulo,rubro:it.rubro,desc:it.desc};session[c].cantidad+=it.cantidad;});
+    toast('💾 Caja actualizada · '+m.total+' prendas');
+  }
+  editingBoxId=null;saveAll();resetMatrix();renderBoxList();renderSess();renderPicked();
 }
 function readMatrix(){
   var items={},total=0;
@@ -575,6 +618,7 @@ function commitBox(){
 }
 function addBoxBtn(){
   if(!curArt)return;
+  if(editingBoxId){saveEdit();return;}
   var t=commitBox();
   if(!t){toast('Cargá cantidades para la caja');return;}
   resetMatrix();renderBoxList();renderSess();renderPicked();
@@ -585,6 +629,7 @@ function removeBox(id){
   if(!confirm('¿Quitar esta caja? Se resta del acumulado.'))return;
   Object.keys(b.items).forEach(function(c){if(session[c]){session[c].cantidad-=b.items[c].cantidad;if(session[c].cantidad<=0)delete session[c];}});
   boxes=boxes.filter(function(x){return x.id!==id;});
+  if(id===editingBoxId){editingBoxId=null;resetMatrix();}
   saveAll();renderBoxList();renderSess();renderPicked();
 }
 function colorLabel(a,code){var c=a.colors.filter(function(x){return x.c===code;})[0];return c?c.l:code;}
@@ -602,10 +647,10 @@ function updTot(){
 }
 function acceptSheet(){
   if(!curArt)return;
-  var pend=readMatrix().total;           // si quedó una caja sin agregar, se suma al aceptar
-  if(pend)commitBox();
+  if(editingBoxId){saveEdit();}                 // si estaba editando, guarda esa caja
+  else if(readMatrix().total){commitBox();}     // si quedó una caja sin agregar, se suma al aceptar
   var nb=boxesFor(curArt.id).length;
-  saveAll();hideSheet('#sheetBg','#sheet');renderPicked();renderSess();
+  editingBoxId=null;saveAll();hideSheet('#sheetBg','#sheet');renderPicked();renderSess();
   toast(nb?('✔ '+curArt.name+' · '+nb+' caja'+(nb>1?'s':'')):'Sin cantidades cargadas');
   curArt=null;
 }
