@@ -37,6 +37,7 @@ function doPost(e) {
       var m0 = getMaster_(folder);
       appendRows_(m0.getSheetByName('Detalle'), 'TEST', {sesion:'TEST', fecha:new Date(),
         items:[{codigo:'PRUEBA', articulo:'prueba de conexión', color:'', talle:'', rubro:'', cantidad:0}]});
+      rebuildStock_(m0);
       return json_({ok:true, msg:'test recibido en CONSOLIDADO'});
     }
 
@@ -51,6 +52,7 @@ function doPost(e) {
     var master = getMaster_(folder);
     appendRows_(master.getSheetByName('Detalle'), persona, data);
     appendCajas_(ensureSheet_(master, 'Cajas', HDR_CAJAS), persona, data);
+    rebuildStock_(master);   // recalcula la hoja Stock (suma por código)
 
     return json_({ok:true, persona:persona, guardados:(data.items || []).length, cajas:(data.cajas || []).length});
   } catch (err) {
@@ -81,7 +83,6 @@ function openOrCreateInFolder_(folder, name) {
 function getMaster_(folder) {
   var ss = openOrCreateInFolder_(folder, MASTER);
   ensureSheet_(ss, 'Detalle', HDR);
-  ensureStock_(ss);
   return ss;
 }
 
@@ -100,16 +101,28 @@ function ensureSheet_(ss, name, header) {
   return sh;
 }
 
-/** Hoja "Stock": suma por código de TODO lo del consolidado (se autoactualiza). */
-function ensureStock_(ss) {
-  var sh = ss.getSheetByName('Stock');
-  if (!sh) {
-    sh = ss.insertSheet('Stock', 0);
-    sh.getRange('A1').setFormula(
-      '=QUERY(Detalle!D2:I, "select D, sum(I) where D is not null and D <> \'PRUEBA\' group by D order by D label D \'Codigo\', sum(I) \'Stock\'", 0)'
-    );
-    sh.getRange(1, 1, 1, 2).setFontWeight('bold');
+/** Hoja "Stock": suma por código de TODO el consolidado. Se recalcula por código (sin fórmulas). */
+function rebuildStock_(ss) {
+  var det = ss.getSheetByName('Detalle');
+  var sh = ss.getSheetByName('Stock') || ss.insertSheet('Stock', 0);
+  sh.clear();
+  var map = {}, order = [];
+  var last = det.getLastRow();
+  if (last >= 2) {
+    var vals = det.getRange(2, 4, last - 1, 6).getValues(); // D..I: Codigo,Articulo,Color,Talle,Rubro,Cantidad
+    vals.forEach(function (r) {
+      var cod = r[0];
+      if (!cod || cod === 'PRUEBA') return;
+      if (!map[cod]) { map[cod] = {desc: r[1], stock: 0}; order.push(cod); }
+      map[cod].stock += Number(r[5]) || 0;
+    });
   }
+  order.sort();
+  var rows = [['Codigo', 'Articulo', 'Stock']];
+  order.forEach(function (c) { rows.push([c, map[c].desc, map[c].stock]); });
+  sh.getRange(1, 1, rows.length, 3).setValues(rows);
+  sh.getRange(1, 1, 1, 3).setFontWeight('bold');
+  sh.setFrozenRows(1);
   return sh;
 }
 
