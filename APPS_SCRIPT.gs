@@ -24,7 +24,7 @@
 var FOLDER = 'Inventario - Conteos';
 var MASTER = 'CONSOLIDADO Inventario';
 var HDR = ['FechaHora','Persona','Sesion','Codigo','Articulo','Color','Talle','Rubro','Cantidad'];
-var HDR_CAJAS = ['FechaHora','Persona','Sesion','Caja','Articulo','Rubro','Prendas'];
+var HDR_CAJAS = ['FechaHora','Persona','Sesion','Caja','Articulo','Color','Rubro','Prendas'];
 
 function doPost(e) {
   var lock = LockService.getScriptLock();
@@ -142,7 +142,7 @@ function appendCajas_(sh, persona, data) {
   var cajas = data.cajas || [];
   if (!cajas.length) return;
   var rows = cajas.map(function (c) {
-    return [fecha, persona, data.sesion || '', c.caja || '', c.articulo || '', c.rubro || '', Number(c.prendas) || 0];
+    return [fecha, persona, data.sesion || '', c.caja || '', c.articulo || '', c.color || '', c.rubro || '', Number(c.prendas) || 0];
   });
   sh.getRange(sh.getLastRow() + 1, 1, rows.length, HDR_CAJAS.length).setValues(rows);
 }
